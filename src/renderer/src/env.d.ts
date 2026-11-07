@@ -1,7 +1,10 @@
 /// <reference types="vite/client" />
+import type { DateloomApi } from "../../preload"
 
-interface Window {
-  dateloom: {
-    platform: string
+declare global {
+  interface Window {
+    dateloom: DateloomApi
   }
 }
+
+export {}
