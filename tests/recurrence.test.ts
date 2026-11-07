@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { daysBetweenKeys } from "../src/shared/dates"
-import { latestOccurrence, monthlyDayFor, occursOn } from "../src/shared/recurrence"
+import { latestOccurrence, monthlyDayFor, nextOccurrence, occursOn } from "../src/shared/recurrence"
 import type { Task } from "../src/shared/types"
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -14,6 +14,28 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ...overrides
   }
 }
+
+describe("nextOccurrence", () => {
+  it("returns the first future occurrence and stops after a one-off", () => {
+    expect(nextOccurrence(makeTask(), new Date(2026, 0, 4))?.date).toBe("2026-01-05")
+    expect(nextOccurrence(makeTask(), new Date(2026, 0, 5, 9))).toBeNull()
+  })
+  it("advances daily and weekly at the exact due time", () => {
+    expect(nextOccurrence(makeTask({ repeat: "daily" }), new Date(2026, 0, 5, 9))?.date).toBe("2026-01-06")
+    expect(nextOccurrence(makeTask({ repeat: "weekly" }), new Date(2026, 0, 5, 9))?.date).toBe("2026-01-12")
+  })
+  it("keeps today's slot when its time is ahead", () => {
+    expect(nextOccurrence(makeTask({ repeat: "daily" }), new Date(2026, 0, 8, 8))?.date).toBe("2026-01-08")
+  })
+  it("clamps February then restores the original day in March", () => {
+    const task = makeTask({ date: "2026-01-31", repeat: "monthly" })
+    const feb = nextOccurrence(task, new Date(2026, 0, 31, 9))!
+    expect(feb.date).toBe("2026-02-28")
+    expect(nextOccurrence(task, feb.dueAt)?.date).toBe("2026-03-31")
+    expect(nextOccurrence(task, new Date(2028, 0, 31, 9))?.date).toBe("2028-02-29")
+    expect(nextOccurrence(task, new Date(2026, 11, 31, 9))?.date).toBe("2027-01-31")
+  })
+})
 
 describe("occursOn", () => {
   it("matches only its own date for a one-off task", () => {

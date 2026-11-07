@@ -1,8 +1,16 @@
-import { app, BrowserWindow, ipcMain, Menu, powerMonitor, shell, Tray } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerMonitor, shell, Tray } from "electron"
 import { join } from "node:path"
 import { getPendingReminders, type PendingReminder } from "../shared/scheduler"
-import type { NewTaskInput, TaskPatch } from "../shared/types"
+import { latestOccurrence } from "../shared/recurrence"
+import type {
+  ImportExportResult,
+  NewTaskInput,
+  StorageInfo,
+  TaskPatch,
+  ThemePreference
+} from "../shared/types"
 import { hideReminders, setReminderContentHeight, showReminders } from "./reminderWindow"
+import { createSettings, type SettingsStore } from "./settings"
 import { createStore, type Store } from "./store"
 import { createTray } from "./tray"
 
@@ -14,6 +22,7 @@ const hiddenLaunch = process.argv.includes("--hidden")
 const TICK_MS = 15_000
 
 let store: Store
+let settings: SettingsStore
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let pending: PendingReminder[] = []
@@ -35,7 +44,11 @@ app.on("window-all-closed", () => {
 
 function start(): void {
   Menu.setApplicationMenu(null)
-  store = createStore(join(app.getPath("userData"), "tasks.json"))
+  const defaultDir = app.getPath("userData")
+  settings = createSettings(join(defaultDir, "settings.json"), nativeTheme.shouldUseDarkColors ? "dark" : "light")
+  const tasksDir = settings.get().tasksDir
+  store = createStore(join(tasksDir ?? defaultDir, "tasks.json"))
+  nativeTheme.themeSource = settings.get().theme
   registerIpc()
   createMainWindow(!hiddenLaunch)
   tray = createTray({ open: openMainWindow, quit: quitApp })
@@ -53,6 +66,12 @@ function start(): void {
     tray?.destroy()
     tray = null
   })
+}
+
+function storageInfo(): StorageInfo {
+  const defaultDir = app.getPath("userData")
+  const dir = settings.get().tasksDir
+  return { dir: dir ?? defaultDir, defaultDir, isDefault: !dir }
 }
 
 function createMainWindow(showOnReady: boolean): void {
@@ -176,6 +195,89 @@ function registerIpc(): void {
   ipcMain.on("reminders:height", (_event, height: number) => {
     if (typeof height === "number" && Number.isFinite(height)) setReminderContentHeight(height)
   })
+
+  ipcMain.handle("settings:theme", (_event, theme: ThemePreference) => {
+    nativeTheme.themeSource = theme
+    settings.update({ theme })
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setBackgroundColor(theme === "dark" ? "#16181c" : "#f6f7f9")
+    }
+  })
+
+  ipcMain.handle("settings:storage", () => storageInfo())
+
+  ipcMain.handle("settings:chooseStorage", async () => {
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const options: Electron.OpenDialogOptions = {
+      title: "Choose where Dateloom keeps your tasks",
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: storageInfo().dir
+    }
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    store.moveTo(result.filePaths[0])
+    settings.update({ tasksDir: result.filePaths[0] })
+    afterTaskChange()
+    return storageInfo()
+  })
+
+  ipcMain.handle("settings:resetStorage", () => {
+    store.moveTo(storageInfo().defaultDir)
+    settings.update({ tasksDir: null })
+    afterTaskChange()
+    return storageInfo()
+  })
+
+  ipcMain.handle("tasks:import", async (): Promise<ImportExportResult> => {
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const options: Electron.OpenDialogOptions = {
+      title: "Import tasks",
+      properties: ["openFile"],
+      filters: [{ name: "Dateloom backup", extensions: ["json"] }]
+    }
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || result.filePaths.length === 0) {
+      return { ok: false, count: 0, message: "" }
+    }
+
+    try {
+      const count = store.importFrom(result.filePaths[0])
+      afterTaskChange()
+      return { ok: true, count, message: `Imported ${count} ${count === 1 ? "task" : "tasks"}.` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not read that file"
+      return { ok: false, count: 0, message }
+    }
+  })
+
+  ipcMain.handle("tasks:export", async (): Promise<ImportExportResult> => {
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const stamp = new Date().toISOString().slice(0, 10)
+    const options: Electron.SaveDialogOptions = {
+      title: "Export tasks",
+      defaultPath: join(app.getPath("documents"), `dateloom-${stamp}.json`),
+      filters: [{ name: "Dateloom backup", extensions: ["json"] }]
+    }
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) {
+      return { ok: false, count: 0, message: "" }
+    }
+
+    try {
+      const count = store.exportTo(result.filePath)
+      return { ok: true, count, message: `Exported ${count} ${count === 1 ? "task" : "tasks"}.` }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not write that file"
+      return { ok: false, count: 0, message }
+    }
+  })
 }
 
 function afterTaskChange(): void {
@@ -191,14 +293,25 @@ function broadcastTasks(): void {
 }
 
 function refreshReminders(): void {
+  const changed = store.reloadIfChanged()
   const tasks = store.getTasks()
+  if (changed) broadcastTasks()
   pending = getPendingReminders(tasks, new Date())
 
   const ids = new Set(pending.map((reminder) => reminder.id))
   const arrived = pending.filter((reminder) => !shownIds.has(reminder.id))
   shownIds = ids
 
-  for (const reminder of arrived) store.markFired(reminder.taskId, new Date())
+  for (const reminder of arrived) {
+    const task = tasks.find((item) => item.id === reminder.taskId)!
+    const legacyFired = !task.firedDates && task.lastFiredAt &&
+      latestOccurrence(task, new Date(task.lastFiredAt))?.date === reminder.occurrenceDate
+      ? task.lastFiredAt : undefined
+    const fired = task.firedDates?.[reminder.occurrenceDate] ?? legacyFired
+    if (!fired || new Date(fired) < new Date(reminder.dueAt)) {
+      store.markFired(reminder.taskId, reminder.occurrenceDate, new Date())
+    }
+  }
 
   if (pending.length === 0) {
     hideReminders()

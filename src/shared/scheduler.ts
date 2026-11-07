@@ -1,4 +1,5 @@
-import { isOccurrenceDismissed, isOccurrenceDone, latestOccurrence } from "./recurrence"
+import { isOccurrenceDismissed, isOccurrenceDone, latestOccurrence, nextOccurrence } from "./recurrence"
+import { dueDateTime } from "./dates"
 import type { Task } from "./types"
 
 export const MISSED_GRACE_MS = 2 * 60 * 1000
@@ -17,27 +18,38 @@ export function getPendingReminders(tasks: Task[], now: Date): PendingReminder[]
   const pending: PendingReminder[] = []
 
   for (const task of tasks) {
-    const occurrence = latestOccurrence(task, now)
-    if (!occurrence) continue
-    if (isOccurrenceDone(task, occurrence.date)) continue
-    if (isOccurrenceDismissed(task, occurrence.date)) continue
+    let occurrence = nextOccurrence(task, new Date(dueDateTime(task.date, task.time).getTime() - 1))
+    while (occurrence && occurrence.dueAt <= now) {
+      const current = occurrence
+      occurrence = nextOccurrence(task, current.dueAt)
+      if (isOccurrenceDone(task, current.date)) continue
+      if (isOccurrenceDismissed(task, current.date)) continue
 
-    let dueAt = occurrence.dueAt
-    if (task.snoozedFor === occurrence.date && task.snoozedUntil) {
-      const snoozedUntil = new Date(task.snoozedUntil)
-      if (snoozedUntil.getTime() > now.getTime()) continue
-      dueAt = snoozedUntil
+      let dueAt = current.dueAt
+      const snooze = task.snoozedDates?.[current.date] ??
+        (task.snoozedFor === current.date ? task.snoozedUntil : undefined)
+      if (snooze) {
+        const snoozedUntil = new Date(snooze)
+        if (snoozedUntil.getTime() > now.getTime()) continue
+        dueAt = snoozedUntil
+      }
+
+      // Restore an unhandled card after restart without labelling an on-time firing missed.
+      const legacyFired = !task.firedDates && task.lastFiredAt &&
+        latestOccurrence(task, new Date(task.lastFiredAt))?.date === current.date
+        ? task.lastFiredAt : undefined
+      const firedAt = task.firedDates?.[current.date] ?? legacyFired
+      const observedAt = firedAt && new Date(firedAt) >= dueAt ? new Date(firedAt) : now
+      pending.push({
+        id: `${task.id}:${current.date}`,
+        taskId: task.id,
+        occurrenceDate: current.date,
+        title: task.title,
+        time: task.time,
+        dueAt: dueAt.toISOString(),
+        missed: observedAt.getTime() - dueAt.getTime() > MISSED_GRACE_MS
+      })
     }
-
-    pending.push({
-      id: `${task.id}:${occurrence.date}`,
-      taskId: task.id,
-      occurrenceDate: occurrence.date,
-      title: task.title,
-      time: task.time,
-      dueAt: dueAt.toISOString(),
-      missed: now.getTime() - dueAt.getTime() > MISSED_GRACE_MS
-    })
   }
 
   return pending.sort((a, b) => a.dueAt.localeCompare(b.dueAt))

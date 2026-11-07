@@ -52,9 +52,9 @@ export function TaskEditorPopover({
     }
 
     if (mode === "add") {
-      await window.dateloom.addTask({ title: trimmed, date, time, repeat })
+      await window.dateloom.addTask({ title: trimmed, date, time: time || nextFullHour(), repeat })
     } else if (task) {
-      await window.dateloom.updateTask(task.id, { title: trimmed, time, repeat })
+      await window.dateloom.updateTask(task.id, { title: trimmed, time: time || nextFullHour(), repeat })
     }
     onClose()
   }
@@ -84,7 +84,6 @@ export function TaskEditorPopover({
               className="input"
               value={time}
               onChange={(event) => setTime(event.target.value)}
-              required
             />
           </label>
           <label className="field">

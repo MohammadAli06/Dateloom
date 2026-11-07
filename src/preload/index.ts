@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { NewTaskInput, Task, TaskPatch } from "../shared/types"
+import type {
+  ImportExportResult,
+  NewTaskInput,
+  StorageInfo,
+  Task,
+  TaskPatch,
+  ThemePreference
+} from "../shared/types"
 import type { PendingReminder } from "../shared/scheduler"
 
 function subscribe<T>(channel: string, callback: (value: T) => void): () => void {
@@ -23,6 +30,12 @@ const api = {
   dismissReminder: (id: string, dateKey: string): Promise<PendingReminder[]> =>
     ipcRenderer.invoke("reminders:dismiss", id, dateKey),
   reportReminderHeight: (height: number): void => ipcRenderer.send("reminders:height", height),
+  setTheme: (theme: ThemePreference): Promise<void> => ipcRenderer.invoke("settings:theme", theme),
+  getStorage: (): Promise<StorageInfo> => ipcRenderer.invoke("settings:storage"),
+  chooseStorage: (): Promise<StorageInfo | null> => ipcRenderer.invoke("settings:chooseStorage"),
+  resetStorage: (): Promise<StorageInfo> => ipcRenderer.invoke("settings:resetStorage"),
+  importTasks: (): Promise<ImportExportResult> => ipcRenderer.invoke("tasks:import"),
+  exportTasks: (): Promise<ImportExportResult> => ipcRenderer.invoke("tasks:export"),
   onTasksChanged: (callback: (tasks: Task[]) => void): (() => void) => subscribe("tasks:changed", callback),
   onRemindersChanged: (callback: (reminders: PendingReminder[]) => void): (() => void) =>
     subscribe("reminders:update", callback)

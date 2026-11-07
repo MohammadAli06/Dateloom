@@ -13,6 +13,10 @@ type PopoverState =
 
 const PANEL_KEY = "dateloom.sidebarCollapsed"
 
+function initialTheme(): "light" | "dark" {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+}
+
 function isTyping(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -25,11 +29,21 @@ export default function App() {
   const [cursor, setCursor] = useState<MonthCursor>(() => monthCursorOf(new Date()))
   const [popover, setPopover] = useState<PopoverState | null>(null)
   const [panelOpen, setPanelOpen] = useState(() => localStorage.getItem(PANEL_KEY) !== "1")
+  const [theme, setTheme] = useState<"light" | "dark">(initialTheme)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void window.dateloom.getTasks().then(setTasks)
     return window.dateloom.onTasksChanged(setTasks)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    void window.dateloom.setTheme(theme)
+  }, [theme])
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => (current === "dark" ? "light" : "dark"))
   }, [])
 
   const openAdd = useCallback((date: string, anchor: DOMRect) => {
@@ -69,6 +83,9 @@ export default function App() {
         setCursor((current) => addMonths(current, -1))
       } else if (event.key === "ArrowRight") {
         setCursor((current) => addMonths(current, 1))
+      } else if (event.key === "PageUp" || event.key === "PageDown") {
+        const delta = event.key === "PageUp" ? -12 : 12
+        setCursor((current) => addMonths(current, delta))
       } else if (event.key.toLowerCase() === "t") {
         setCursor(monthCursorOf(new Date()))
       } else {
@@ -108,10 +125,13 @@ export default function App() {
       <MonthHeader
         cursor={cursor}
         panelOpen={panelOpen}
+        dark={theme === "dark"}
         onPrevious={() => setCursor((current) => addMonths(current, -1))}
         onNext={() => setCursor((current) => addMonths(current, 1))}
         onToday={() => setCursor(monthCursorOf(new Date()))}
+        onSelect={setCursor}
         onTogglePanel={togglePanel}
+        onToggleTheme={toggleTheme}
       />
 
       <div className="shell">

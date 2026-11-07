@@ -1,9 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import { isOccurrenceDone, occursOn } from "../../../shared/recurrence"
 import type { Task } from "../../../shared/types"
+import { useToday } from "../lib/useToday"
 import {
   buildMonthGrid,
-  isSameDay,
   isSameMonth,
   toDateKey,
   WEEKDAY_LABELS,
@@ -27,7 +27,7 @@ export function MonthGrid({ cursor, tasks, onAdd, onEdit, onMore }: Props) {
   const days = useMemo(() => buildMonthGrid(cursor), [cursor])
   const gridRef = useRef<HTMLDivElement>(null)
   const [cellHeight, setCellHeight] = useState(0)
-  const today = new Date()
+  const today = useToday()
 
   useLayoutEffect(() => {
     const element = gridRef.current
@@ -59,7 +59,7 @@ export function MonthGrid({ cursor, tasks, onAdd, onEdit, onMore }: Props) {
           const dateKey = toDateKey(day)
           const classes = ["day-cell"]
           if (!isSameMonth(day, cursor)) classes.push("is-outside")
-          if (isSameDay(day, today)) classes.push("is-today")
+          if (dateKey === today) classes.push("is-today")
 
           const dayTasks = tasks
             .filter((task) => occursOn(task, dateKey))

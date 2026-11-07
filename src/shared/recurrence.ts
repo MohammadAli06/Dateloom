@@ -6,6 +6,30 @@ export type Occurrence = {
   dueAt: Date
 }
 
+/** First scheduled occurrence strictly after the supplied instant. */
+export function nextOccurrence(task: Task, after: Date): Occurrence | null {
+  const first = dueDateTime(task.date, task.time)
+  if (first > after) return { date: task.date, dueAt: first }
+  if (task.repeat === "none") return null
+  let key: string
+  if (task.repeat === "monthly") {
+    const anchorDay = fromDateKey(task.date).getDate()
+    let month = after.getMonth()
+    const year = after.getFullYear()
+    key = toDateKey(new Date(year, month, monthlyDayFor(anchorDay, year, month)))
+    if (dueDateTime(key, task.time) <= after) {
+      month++
+      key = toDateKey(new Date(year, month, monthlyDayFor(anchorDay, year, month)))
+    }
+  } else {
+    const step = task.repeat === "daily" ? 1 : 7
+    const offset = Math.floor(daysBetweenKeys(task.date, toDateKey(after)) / step) * step
+    key = addDaysToKey(task.date, offset)
+    if (dueDateTime(key, task.time) <= after) key = addDaysToKey(key, step)
+  }
+  return { date: key, dueAt: dueDateTime(key, task.time) }
+}
+
 export function monthlyDayFor(anchorDay: number, year: number, month: number): number {
   return Math.min(anchorDay, lastDayOfMonth(year, month))
 }

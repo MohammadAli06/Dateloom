@@ -1,6 +1,8 @@
-import { addDaysToKey, toDateKey } from "../../../shared/dates"
+import { useEffect, useState } from "react"
+import { addDaysToKey } from "../../../shared/dates"
+import { useToday } from "../lib/useToday"
 import { isOccurrenceDone, occursOn } from "../../../shared/recurrence"
-import type { Task } from "../../../shared/types"
+import type { ImportExportResult, StorageInfo, Task } from "../../../shared/types"
 import { formatDayLabel } from "../lib/dates"
 
 type Props = {
@@ -8,7 +10,7 @@ type Props = {
 }
 
 export function SidePanel({ tasks }: Props) {
-  const todayKey = toDateKey(new Date())
+  const todayKey = useToday()
   const todayTasks = tasks.filter((task) => occursOn(task, todayKey)).sort(byTime)
   const upcoming = Array.from({ length: 7 }, (_, index) => addDaysToKey(todayKey, index + 1))
     .map((dateKey) => ({
@@ -43,7 +45,68 @@ export function SidePanel({ tasks }: Props) {
           ))
         )}
       </section>
+
+      <StorageFooter />
     </aside>
+  )
+}
+
+function StorageFooter() {
+  const [info, setInfo] = useState<StorageInfo | null>(null)
+  const [note, setNote] = useState("")
+
+  useEffect(() => {
+    void window.dateloom.getStorage().then(setInfo)
+  }, [])
+
+  if (!info) return null
+
+  async function run(action: () => Promise<ImportExportResult>) {
+    const result = await action()
+    if (result.message) setNote(result.message)
+  }
+
+  return (
+    <section className="panel-section storage">
+      <h2 className="panel-heading">Storage</h2>
+      <p className="storage-path" title={info.dir}>
+        {info.isDefault ? "This computer only" : "Synced folder"}
+        <br />
+        <span>{info.dir}</span>
+      </p>
+      <button
+        className="btn btn-quiet storage-btn"
+        onClick={async () => {
+          const next = await window.dateloom.chooseStorage()
+          if (next) {
+            setInfo(next)
+            setNote("")
+          }
+        }}
+      >
+        Choose folder…
+      </button>
+      <div className="storage-row">
+        <button className="btn btn-quiet storage-btn" onClick={() => run(window.dateloom.importTasks)}>
+          Import…
+        </button>
+        <button className="btn btn-quiet storage-btn" onClick={() => run(window.dateloom.exportTasks)}>
+          Export…
+        </button>
+      </div>
+      {!info.isDefault && (
+        <button
+          className="btn btn-quiet storage-btn"
+          onClick={async () => {
+            setInfo(await window.dateloom.resetStorage())
+            setNote("")
+          }}
+        >
+          Use this computer only
+        </button>
+      )}
+      {note && <p className="storage-note">{note}</p>}
+    </section>
   )
 }
 
