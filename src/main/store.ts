@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { isValidDateKey, isValidTime } from "../shared/dates"
-import { snoozedUntil } from "../shared/scheduler"
 import { latestOccurrence } from "../shared/recurrence"
 import type { NewTaskInput, RepeatRule, Task, TaskPatch } from "../shared/types"
 
@@ -233,12 +232,14 @@ export function createStore(initialPath: string) {
     persist()
   }
 
-  function snooze(id: string, dateKey: string, minutes: number, now = new Date()): void {
+  function snooze(id: string, dateKey: string, until: Date): void {
+    const when = new Date(until)
+    if (Number.isNaN(when.getTime())) throw new Error("Invalid snooze time")
+
     tasks = tasks.map((task) => {
       if (task.id !== id) return task
-      const until = snoozedUntil(now, minutes)
-      return { ...task, snoozedUntil: until, snoozedFor: dateKey,
-        snoozedDates: { ...task.snoozedDates, [dateKey]: until },
+      return { ...task, snoozedUntil: when.toISOString(), snoozedFor: dateKey,
+        snoozedDates: { ...task.snoozedDates, [dateKey]: when.toISOString() },
         updatedAt: new Date().toISOString() }
     })
     persist()

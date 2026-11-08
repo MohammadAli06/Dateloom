@@ -45,8 +45,8 @@ describe("store", () => {
     const now = new Date(2026, 1, 4, 8)
     store.markFired(task.id, "2026-02-03", now)
     store.markFired(task.id, "2026-02-04", now)
-    store.snooze(task.id, "2026-02-03", 5, now)
-    store.snooze(task.id, "2026-02-04", 30, now)
+    store.snooze(task.id, "2026-02-03", new Date(2026, 1, 4, 8, 5))
+    store.snooze(task.id, "2026-02-04", new Date(2026, 1, 4, 8, 30))
     const [saved] = createStore(filePath).getTasks()
     expect(Object.keys(saved.firedDates!)).toEqual(["2026-02-03", "2026-02-04"])
     expect(saved.snoozedDates?.["2026-02-03"]).toBe(new Date(2026, 1, 4, 8, 5).toISOString())
@@ -103,7 +103,7 @@ describe("store", () => {
     const task = store.addTask({ title: "Invoice", date: "2026-02-03", time: "08:00", repeat: "none" })
 
     store.dismiss(task.id, "2026-02-03")
-    store.snooze(task.id, "2026-02-03", 10, new Date(2026, 1, 3, 8, 0))
+    store.snooze(task.id, "2026-02-03", new Date(2026, 1, 3, 8, 10))
 
     const [saved] = store.getTasks()
     expect(saved.dismissedDates).toEqual(["2026-02-03"])
@@ -232,5 +232,34 @@ describe("store", () => {
     const store = createStore(filePath)
     expect(() => store.importFrom(bad)).toThrow()
     expect(store.getTasks()).toEqual([])
+  })
+
+  it("snoozes to an arbitrary future date", () => {
+    const store = createStore(filePath)
+    const task = store.addTask({ title: "Dentist", date: "2026-02-03", time: "08:00", repeat: "none" })
+
+    const until = new Date(2026, 2, 15, 14, 30)
+    store.snooze(task.id, "2026-02-03", until)
+
+    const [saved] = createStore(filePath).getTasks()
+    expect(saved.snoozedDates?.["2026-02-03"]).toBe(until.toISOString())
+  })
+
+  it("keeps a far-future snooze quiet until it arrives", () => {
+    const store = createStore(filePath)
+    const task = store.addTask({ title: "Renew passport", date: "2026-02-03", time: "08:00", repeat: "none" })
+
+    store.snooze(task.id, "2026-02-03", new Date(2026, 2, 15, 14, 30))
+
+    const tasks = store.getTasks()
+    expect(getPendingReminders(tasks, new Date(2026, 1, 4, 9))).toEqual([])
+    expect(getPendingReminders(tasks, new Date(2026, 2, 15, 14, 30, 10))).toHaveLength(1)
+  })
+
+  it("rejects an invalid snooze time", () => {
+    const store = createStore(filePath)
+    const task = store.addTask({ title: "Dentist", date: "2026-02-03", time: "08:00", repeat: "none" })
+
+    expect(() => store.snooze(task.id, "2026-02-03", new Date("nonsense"))).toThrow()
   })
 })

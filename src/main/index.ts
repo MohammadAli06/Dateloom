@@ -9,7 +9,12 @@ import type {
   TaskPatch,
   ThemePreference
 } from "../shared/types"
-import { hideReminders, setReminderContentHeight, showReminders } from "./reminderWindow"
+import {
+  hideReminders,
+  setReminderContentHeight,
+  setRemindersFocusable,
+  showReminders
+} from "./reminderWindow"
 import { createSettings, type SettingsStore } from "./settings"
 import { createStore, type Store } from "./store"
 import { createTray } from "./tray"
@@ -180,8 +185,8 @@ function registerIpc(): void {
     return pending
   })
 
-  ipcMain.handle("reminders:snooze", (_event, id: string, dateKey: string, minutes: number) => {
-    store.snooze(id, dateKey, minutes)
+  ipcMain.handle("reminders:snooze", (_event, id: string, dateKey: string, until: string) => {
+    store.snooze(id, dateKey, new Date(until))
     afterTaskChange()
     return pending
   })
@@ -194,6 +199,10 @@ function registerIpc(): void {
 
   ipcMain.on("reminders:height", (_event, height: number) => {
     if (typeof height === "number" && Number.isFinite(height)) setReminderContentHeight(height)
+  })
+
+  ipcMain.on("reminders:focus", (_event, focusable: boolean) => {
+    setRemindersFocusable(focusable === true)
   })
 
   ipcMain.handle("settings:theme", (_event, theme: ThemePreference) => {

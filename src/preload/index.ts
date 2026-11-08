@@ -25,11 +25,12 @@ const api = {
   getReminders: (): Promise<PendingReminder[]> => ipcRenderer.invoke("reminders:list"),
   completeReminder: (id: string, dateKey: string): Promise<PendingReminder[]> =>
     ipcRenderer.invoke("reminders:done", id, dateKey),
-  snoozeReminder: (id: string, dateKey: string, minutes: number): Promise<PendingReminder[]> =>
-    ipcRenderer.invoke("reminders:snooze", id, dateKey, minutes),
+  snoozeReminder: (id: string, dateKey: string, until: string): Promise<PendingReminder[]> =>
+    ipcRenderer.invoke("reminders:snooze", id, dateKey, until),
   dismissReminder: (id: string, dateKey: string): Promise<PendingReminder[]> =>
     ipcRenderer.invoke("reminders:dismiss", id, dateKey),
   reportReminderHeight: (height: number): void => ipcRenderer.send("reminders:height", height),
+  setRemindersFocusable: (focusable: boolean): void => ipcRenderer.send("reminders:focus", focusable),
   setTheme: (theme: ThemePreference): Promise<void> => ipcRenderer.invoke("settings:theme", theme),
   getStorage: (): Promise<StorageInfo> => ipcRenderer.invoke("settings:storage"),
   chooseStorage: (): Promise<StorageInfo | null> => ipcRenderer.invoke("settings:chooseStorage"),

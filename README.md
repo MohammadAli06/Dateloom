@@ -31,6 +31,7 @@ npm run dist:linux # Linux AppImage
 - The panel on the right lists today and the next seven days; the header button hides it.
 - Closing the window keeps Dateloom running in the system tray. `Quit` lives there.
 - Reminders slide in at the top-right on their own, stacked, with Done / Snooze / Dismiss.
+- Snooze offers 5, 10 or 30 minutes, Tomorrow 9am, or **Pick date…** for any date and time you choose.
 - Every unhandled repeat occurrence stays available until acted on, including after restart. Snoozing one occurrence does not snooze another.
 - An empty time field uses the next full hour when saved. Today and Upcoming refresh at midnight and when the window is reopened.
 

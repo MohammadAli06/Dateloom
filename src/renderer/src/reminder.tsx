@@ -1,15 +1,31 @@
 import { StrictMode, useEffect, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-import type { PendingReminder } from "../../shared/scheduler"
+import { SNOOZE_MINUTES, type PendingReminder } from "../../shared/scheduler"
 import chimeUrl from "./assets/chime.wav"
 import "./theme.css"
 import "./reminder.css"
 
-const SNOOZE_MINUTES = [5, 10, 30]
+/** Round-trips a local date to the `YYYY-MM-DDTHH:mm` an `input[type=datetime-local]` expects. */
+function toLocalInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function defaultCustomTime(): string {
+  const now = new Date()
+  return toLocalInput(new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, now.getMinutes()))
+}
+
+function startOfTomorrow(): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0)
+}
 
 function ReminderApp() {
   const [reminders, setReminders] = useState<PendingReminder[]>([])
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null)
+  const [customFor, setCustomFor] = useState<string | null>(null)
+  const [customAt, setCustomAt] = useState(defaultCustomTime)
   const stackRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const previousIds = useRef<string[]>([])
@@ -19,6 +35,11 @@ function ReminderApp() {
     void window.dateloom.getReminders().then(setReminders)
     return window.dateloom.onRemindersChanged(setReminders)
   }, [])
+
+  // The window only accepts keyboard focus while a custom picker is open.
+  useEffect(() => {
+    window.dateloom.setRemindersFocusable(customFor !== null)
+  }, [customFor])
 
   useEffect(() => {
     const hasNew = reminders.some((reminder) => !previousIds.current.includes(reminder.id))
@@ -40,6 +61,17 @@ function ReminderApp() {
     return () => observer.disconnect()
   }, [reminders])
 
+  function snoozeUntil(reminder: PendingReminder, until: Date) {
+    void window.dateloom.snoozeReminder(reminder.taskId, reminder.occurrenceDate, until.toISOString())
+    setSnoozeFor(null)
+    setCustomFor(null)
+  }
+
+  function openCustom(reminder: PendingReminder) {
+    setCustomFor(reminder.id)
+    setCustomAt(defaultCustomTime())
+  }
+
   return (
     <div className="stack" ref={stackRef}>
       {reminders.map((reminder) => (
@@ -60,7 +92,10 @@ function ReminderApp() {
             </button>
             <button
               className="btn"
-              onClick={() => setSnoozeFor((current) => (current === reminder.id ? null : reminder.id))}
+              onClick={() => {
+                setCustomFor(null)
+                setSnoozeFor((current) => (current === reminder.id ? null : reminder.id))
+              }}
             >
               Snooze
             </button>
@@ -73,20 +108,52 @@ function ReminderApp() {
               Dismiss
             </button>
           </div>
+
           {snoozeFor === reminder.id && (
             <div className="snooze-menu">
               {SNOOZE_MINUTES.map((minutes) => (
                 <button
                   key={minutes}
                   className="btn"
-                  onClick={() => {
-                    void window.dateloom.snoozeReminder(reminder.taskId, reminder.occurrenceDate, minutes)
-                    setSnoozeFor(null)
-                  }}
+                  onClick={() => snoozeUntil(reminder, new Date(Date.now() + minutes * 60_000))}
                 >
                   {minutes} min
                 </button>
               ))}
+              <button className="btn" onClick={() => snoozeUntil(reminder, startOfTomorrow())}>
+                Tomorrow 9am
+              </button>
+              <button className="btn" onClick={() => openCustom(reminder)}>
+                Pick date…
+              </button>
+            </div>
+          )}
+
+          {customFor === reminder.id && (
+            <div className="custom-snooze">
+              <input
+                type="datetime-local"
+                className="input"
+                value={customAt}
+                autoFocus
+                onChange={(event) => setCustomAt(event.target.value)}
+              />
+              <div className="snooze-menu">
+                <button
+                  className="btn btn-primary"
+                  disabled={!customAt}
+                  onClick={() => {
+                    const until = new Date(customAt)
+                    if (Number.isNaN(until.getTime())) return
+                    snoozeUntil(reminder, until)
+                  }}
+                >
+                  Snooze
+                </button>
+                <button className="btn btn-quiet" onClick={() => setCustomFor(null)}>
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </article>

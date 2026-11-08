@@ -1,6 +1,6 @@
 {
   "name": "dateloom",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A calm month calendar with reminders.",
   "author": "Mohammad Ali Sayyed",
@@ -36,6 +36,7 @@
   "build": {
     "appId": "com.dateloom.app",
     "productName": "Dateloom",
+    "copyright": "Copyright © 2026 Mohammad Ali Sayyed",
     "directories": {
       "output": "release",
       "buildResources": "build"

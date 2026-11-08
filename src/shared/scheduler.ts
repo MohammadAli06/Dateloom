@@ -4,6 +4,9 @@ import type { Task } from "./types"
 
 export const MISSED_GRACE_MS = 2 * 60 * 1000
 
+/** Snooze presets offered in the reminder popup, in minutes. */
+export const SNOOZE_MINUTES = [5, 10, 30] as const
+
 export type PendingReminder = {
   id: string
   taskId: string

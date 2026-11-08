@@ -25,6 +25,14 @@ export function hideReminders(): void {
   reminderWindow?.hide()
 }
 
+/** Lets the custom snooze picker receive typing without stealing focus at other times. */
+export function setRemindersFocusable(focusable: boolean): void {
+  if (!reminderWindow || reminderWindow.isDestroyed()) return
+  reminderWindow.setFocusable(focusable)
+  if (focusable) reminderWindow.focus()
+  else reminderWindow.blur()
+}
+
 function ensureWindow(): BrowserWindow {
   if (reminderWindow && !reminderWindow.isDestroyed()) return reminderWindow
 
