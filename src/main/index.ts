@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerMonitor, shell, Tray } from "electron"
 import { join } from "node:path"
+import appIcon from "../../build/icon.png?asset"
 import { getPendingReminders, type PendingReminder } from "../shared/scheduler"
 import { latestOccurrence } from "../shared/recurrence"
 import type {
@@ -95,6 +96,7 @@ function createMainWindow(showOnReady: boolean): void {
     minHeight: 620,
     show: false,
     title: "Dateloom",
+    icon: appIcon,
     backgroundColor: "#f6f7f9",
     autoHideMenuBar: true,
     webPreferences: {

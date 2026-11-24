@@ -32,21 +32,22 @@ function fillRounded(left, top, right, bottom, radius, color) {
   }
 }
 
-fillRounded(40, 40, 984, 984, 220, ACCENT)
+// Scale the original tray logo to generate all app and tray assets.
+const SCALE = BASE / 32
+fillRounded(SCALE, SCALE, 31 * SCALE, 31 * SCALE, 8 * SCALE, ACCENT)
 
-const PAGE = { left: 236, top: 252, right: 788, bottom: 772, radius: 64 }
-for (let y = PAGE.top; y < PAGE.bottom; y++) {
-  for (let x = PAGE.left; x < PAGE.right; x++) {
-    if (!insideRounded(x + 0.5, y + 0.5, PAGE.left, PAGE.top, PAGE.right, PAGE.bottom, PAGE.radius)) continue
-    setPixel(x, y, y < 350 ? ACCENT : WHITE)
+const page = { left: 7 * SCALE, top: 9 * SCALE, right: 25 * SCALE, bottom: 27 * SCALE, radius: 3 * SCALE }
+for (let y = 13 * SCALE; y < page.bottom; y++) {
+  for (let x = page.left; x < page.right; x++) {
+    if (insideRounded(x + 0.5, y + 0.5, page.left, page.top, page.right, page.bottom, page.radius)) {
+      setPixel(x, y, WHITE)
+    }
   }
 }
 
-const dotColumns = [336, 492, 648]
-const dotRows = [452, 572]
-for (const dotX of dotColumns) {
-  for (const dotY of dotRows) {
-    fillRounded(dotX, dotY, dotX + 44, dotY + 44, 12, ACCENT)
+for (const x of [11, 16, 21]) {
+  for (const y of [17, 22]) {
+    fillRounded(x * SCALE, y * SCALE, (x + 2) * SCALE, (y + 2) * SCALE, 0, ACCENT)
   }
 }
 
@@ -148,4 +149,5 @@ const buildDir = join(process.cwd(), "build")
 mkdirSync(buildDir, { recursive: true })
 writeFileSync(join(buildDir, "icon.png"), png(512, downsample(pixels, 2)))
 writeFileSync(join(buildDir, "icon.ico"), ico(png(256, downsample(pixels, 4))))
-console.log("wrote build/icon.png and build/icon.ico")
+writeFileSync(join(buildDir, "tray.png"), png(32, downsample(pixels, 32)))
+console.log("wrote build/icon.png, build/icon.ico, and build/tray.png")

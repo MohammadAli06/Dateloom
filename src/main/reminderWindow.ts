@@ -14,6 +14,8 @@ export function showReminders(reminders: PendingReminder[]): void {
   window.webContents.send("reminders:update", reminders)
   applyBounds()
   if (!window.isVisible()) window.showInactive()
+  window.setAlwaysOnTop(true, "screen-saver")
+  window.moveTop()
 }
 
 export function setReminderContentHeight(height: number): void {
@@ -30,7 +32,7 @@ export function setRemindersFocusable(focusable: boolean): void {
   if (!reminderWindow || reminderWindow.isDestroyed()) return
   reminderWindow.setFocusable(focusable)
   if (focusable) reminderWindow.focus()
-  else reminderWindow.blur()
+  else if (reminderWindow.isVisible()) reminderWindow.moveTop()
 }
 
 function ensureWindow(): BrowserWindow {
@@ -59,7 +61,9 @@ function ensureWindow(): BrowserWindow {
     }
   })
 
-  reminderWindow.setAlwaysOnTop(true, "floating")
+  if (process.platform === "darwin") {
+    reminderWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
   reminderWindow.on("closed", () => {
     reminderWindow = null
   })
